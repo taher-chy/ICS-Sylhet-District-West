@@ -1,4 +1,19 @@
-// Admin Panel State Controller
+// ==========================================
+// admin.js - Admin Panel State Controller (Firebase Synced)
+// ==========================================
+
+// In-Memory State Synced with Firebase
+const adminState = {
+    ics_notices: [],
+    ics_members: [],
+    ics_transactions: [],
+    ics_messages: [],
+    ics_council: [],
+    ics_branches: [],
+    ics_contact_info: null
+};
+
+let firebaseListenerAttached = false;
 
 // DOM elements
 const loginOverlay = document.getElementById('login-overlay');
@@ -9,6 +24,17 @@ const menuToggle = document.getElementById('menu-toggle');
 const adminMenu = document.getElementById('admin-menu');
 const sections = document.querySelectorAll('.admin-section');
 const logoutBtn = document.getElementById('admin-logout');
+
+// Helper to save specific key to Firebase
+function saveToFirebase(key, value) {
+    adminState[key] = value;
+    if (typeof db !== 'undefined') {
+        return db.ref(`ics_data/${key}`).set(value);
+    } else {
+        console.error('Firebase database (db) is not initialized!');
+        return Promise.reject('DB not initialized');
+    }
+}
 
 // 1. Authentication Control
 function checkAuth() {
@@ -78,11 +104,9 @@ if (adminMenu) {
             e.preventDefault();
             const targetSectionId = link.getAttribute('data-target');
             
-            // Set active class in sidebar menu
             adminMenu.querySelectorAll('li').forEach(li => li.classList.remove('active'));
             link.parentElement.classList.add('active');
 
-            // Show active section container
             sections.forEach(section => {
                 if (section.id === targetSectionId) {
                     section.classList.add('active');
@@ -91,10 +115,8 @@ if (adminMenu) {
                 }
             });
 
-            // Close sidebar on mobile
             if (sidebar) sidebar.classList.remove('open');
 
-            // Trigger specific tab loading logic
             if (targetSectionId === 'council-section') {
                 renderCouncilTable();
             } else if (targetSectionId === 'hrd-section') {
@@ -119,37 +141,63 @@ function tr(key, fallback = '') {
     return window.ICS_I18N ? window.ICS_I18N.t(key) : fallback;
 }
 
-// 4. Data Initialization & Summary Statistics
+// 4. Data Initialization & Real-Time Firebase Sync
 let financeChartInstance = null;
 
-function initializeDashboard() {
+function refreshAllAdminUI() {
     calculateSummaryStats();
     renderRecentInquiries();
     renderChart();
     renderCouncilTable();
+    renderMembersTable();
+    renderNoticesTable();
     renderBranchesTable();
     updateBranchSuggestions();
     loadContactInfoSettingsForm();
+    renderTransactionsTable();
+    renderInboxTable();
+}
+
+function initializeDashboard() {
+    if (typeof db === 'undefined') {
+        console.error('Firebase database (db) is not initialized in admin.html!');
+        return;
+    }
+
+    if (!firebaseListenerAttached) {
+        firebaseListenerAttached = true;
+        db.ref('ics_data').on('value', (snapshot) => {
+            const data = snapshot.val() || {};
+            adminState.ics_notices = data.ics_notices ? Object.values(data.ics_notices) : [];
+            adminState.ics_members = data.ics_members ? Object.values(data.ics_members) : [];
+            adminState.ics_transactions = data.ics_transactions ? Object.values(data.ics_transactions) : [];
+            adminState.ics_messages = data.ics_messages ? Object.values(data.ics_messages) : [];
+            adminState.ics_council = data.ics_council ? Object.values(data.ics_council) : [...DEFAULT_COUNCIL_MEMBERS];
+            adminState.ics_branches = data.ics_branches ? Object.values(data.ics_branches) : [];
+            adminState.ics_contact_info = data.ics_contact_info || null;
+
+            refreshAllAdminUI();
+        });
+    } else {
+        refreshAllAdminUI();
+    }
 }
 
 function calculateSummaryStats() {
-    const members = JSON.parse(localStorage.getItem('ics_members')) || [];
-    const messages = JSON.parse(localStorage.getItem('ics_messages')) || [];
-    const transactions = JSON.parse(localStorage.getItem('ics_transactions')) || [];
+    const members = adminState.ics_members || [];
+    const messages = adminState.ics_messages || [];
+    const transactions = adminState.ics_transactions || [];
 
-    // Calculate Net balance
     let totalIncome = 0;
     let totalExpense = 0;
     transactions.forEach(t => {
-        if (t.type === 'Income') totalIncome += t.amount;
-        else totalExpense += t.amount;
+        if (t.type === 'Income') totalIncome += Number(t.amount) || 0;
+        else totalExpense += Number(t.amount) || 0;
     });
     const netBalance = totalIncome - totalExpense;
 
-    // Count unread messages
     const unreadCount = messages.filter(m => m.status === 'Unread').length;
 
-    // Update Overview Stats cards
     const totalMembersEl = document.getElementById('stat-total-members');
     const netFinanceEl = document.getElementById('stat-net-finance');
     const unreadMessagesEl = document.getElementById('stat-unread-messages');
@@ -160,7 +208,6 @@ function calculateSummaryStats() {
     if (netFinanceEl) netFinanceEl.innerText = netBalance.toLocaleString() + ' ' + unit;
     if (unreadMessagesEl) {
         unreadMessagesEl.innerText = unreadCount;
-        // Also update sidebar message counter badge if present
         const badge = document.getElementById('inbox-badge');
         if (badge) {
             badge.innerText = unreadCount;
@@ -168,7 +215,7 @@ function calculateSummaryStats() {
         }
     }
     if (activeBranchesEl) {
-        const branches = JSON.parse(localStorage.getItem('ics_branches')) || [];
+        const branches = adminState.ics_branches || [];
         if (branches.length > 0) {
             activeBranchesEl.innerText = branches.length + (window.ICS_I18N && window.ICS_I18N.getLang() === 'bn' ? 'টি শাখা' : ' Branches');
         } else {
@@ -179,13 +226,11 @@ function calculateSummaryStats() {
 
 // Render recent messages inside Dashboard overview section
 function renderRecentInquiries() {
-    const messages = JSON.parse(localStorage.getItem('ics_messages')) || [];
+    const messages = adminState.ics_messages || [];
     const tbody = document.getElementById('recent-inquiries-tbody');
     if (!tbody) return;
 
     tbody.innerHTML = '';
-    
-    // Get last 4 messages
     const recent = [...messages].sort((a,b) => b.id - a.id).slice(0, 4);
 
     if (recent.length === 0) {
@@ -212,30 +257,26 @@ function renderChart() {
     const ctx = document.getElementById('financeChart');
     if (!ctx) return;
 
-    // If chart exists, destroy it to redraw
     if (financeChartInstance) {
         financeChartInstance.destroy();
     }
 
-    const transactions = JSON.parse(localStorage.getItem('ics_transactions')) || [];
-    
-    // Sort transactions chronologically
+    const transactions = adminState.ics_transactions || [];
     const chronTxns = [...transactions].sort((a, b) => new Date(a.date) - new Date(b.date));
     
-    // Accumulate metrics grouped by date
     const dateMap = {};
     chronTxns.forEach(t => {
         if (!dateMap[t.date]) {
             dateMap[t.date] = { income: 0, expense: 0 };
         }
         if (t.type === 'Income') {
-            dateMap[t.date].income += t.amount;
+            dateMap[t.date].income += Number(t.amount) || 0;
         } else {
-            dateMap[t.date].expense += t.amount;
+            dateMap[t.date].expense += Number(t.amount) || 0;
         }
     });
 
-    const labels = Object.keys(dateMap).slice(-7); // last 7 days of logs
+    const labels = Object.keys(dateMap).slice(-7);
     const incomeData = [];
     const expenseData = [];
 
@@ -244,7 +285,6 @@ function renderChart() {
         expenseData.push(dateMap[date].expense);
     });
 
-    // Check if Chart.js is loaded
     if (typeof Chart !== 'undefined') {
         financeChartInstance = new Chart(ctx, {
             type: 'bar',
@@ -302,7 +342,7 @@ if (hrdSearch) hrdSearch.addEventListener('input', renderMembersTable);
 if (hrdFilterRank) hrdFilterRank.addEventListener('change', renderMembersTable);
 
 function renderMembersTable() {
-    const members = JSON.parse(localStorage.getItem('ics_members')) || [];
+    const members = adminState.ics_members || [];
     const tbody = document.getElementById('members-tbody');
     if (!tbody) return;
 
@@ -310,7 +350,6 @@ function renderMembersTable() {
     const query = hrdSearch ? hrdSearch.value.toLowerCase() : '';
     const rankFilter = hrdFilterRank ? hrdFilterRank.value : '';
 
-    // Filter results
     const filtered = members.filter(m => {
         const matchesQuery = m.name.toLowerCase().includes(query) || m.branch.toLowerCase().includes(query);
         const matchesRank = rankFilter === '' || m.rank === rankFilter;
@@ -342,7 +381,6 @@ function renderMembersTable() {
     });
 }
 
-// Modal Form Openers
 window.openAddMemberModal = function() {
     editMemberId = null;
     if (memberForm) {
@@ -354,7 +392,7 @@ window.openAddMemberModal = function() {
 
 window.openEditMemberModal = function(id) {
     editMemberId = id;
-    const members = JSON.parse(localStorage.getItem('ics_members')) || [];
+    const members = adminState.ics_members || [];
     const member = members.find(m => m.id === id);
     if (!member) return;
 
@@ -372,7 +410,6 @@ window.closeMemberModal = function() {
     if (memberModal) memberModal.style.display = 'none';
 };
 
-// Form submit listener (handles both Add and Edit)
 if (memberForm) {
     memberForm.addEventListener('submit', (e) => {
         e.preventDefault();
@@ -382,12 +419,11 @@ if (memberForm) {
         const status = document.getElementById('member-status').value;
         const training = document.getElementById('member-training').value;
 
-        let members = JSON.parse(localStorage.getItem('ics_members')) || [];
+        let members = [...(adminState.ics_members || [])];
 
         if (editMemberId === null) {
-            // Adding a new member
             const newMember = {
-                id: members.length > 0 ? Math.max(...members.map(m => m.id)) + 1 : 101,
+                id: members.length > 0 ? Math.max(...members.map(m => Number(m.id))) + 1 : 101,
                 name: name,
                 rank: rank,
                 branch: branch,
@@ -396,7 +432,6 @@ if (memberForm) {
             };
             members.push(newMember);
         } else {
-            // Editing existing member
             members = members.map(m => {
                 if (m.id === editMemberId) {
                     return { ...m, name, rank, branch, status, training };
@@ -405,21 +440,16 @@ if (memberForm) {
             });
         }
 
-        localStorage.setItem('ics_members', JSON.stringify(members));
-        closeMemberModal();
-        renderMembersTable();
-        calculateSummaryStats();
+        saveToFirebase('ics_members', members).then(() => {
+            closeMemberModal();
+        });
     });
 }
 
-// Delete Member
 window.deleteMember = function(id) {
     if (confirm('Are you sure you want to delete this member from the database?')) {
-        let members = JSON.parse(localStorage.getItem('ics_members')) || [];
-        members = members.filter(m => m.id !== id);
-        localStorage.setItem('ics_members', JSON.stringify(members));
-        renderMembersTable();
-        calculateSummaryStats();
+        const members = (adminState.ics_members || []).filter(m => m.id !== id);
+        saveToFirebase('ics_members', members);
     }
 };
 
@@ -452,7 +482,7 @@ function normalizeMemberRank(raw, fallbackRank) {
 
 function normalizeMemberStatus(raw) {
     const val = String(raw || '').trim().toLowerCase();
-    if (val.includes('inactive') || val.includes('নিষ্ক্রিয়') || val.includes('নিষ্ক্রিয়') || val === 'no') {
+    if (val.includes('inactive') || val.includes('নিষ্ক্রিয়') || val === 'no') {
         return 'Inactive';
     }
     return 'Active';
@@ -518,12 +548,7 @@ function extractMembersFromMatrix(rows, sheetFallbackRank) {
         const cells = rows[r];
         if (!cells || !cells.some(c => String(c || '').trim() !== '')) continue;
 
-        let rawId = '';
-        let rawName = '';
-        let rawRank = '';
-        let rawBranch = '';
-        let rawStatus = '';
-        let rawTraining = '';
+        let rawId = '', rawName = '', rawRank = '', rawBranch = '', rawStatus = '', rawTraining = '';
 
         if (hasHeader) {
             rawId = idIdx !== -1 ? cells[idIdx] : '';
@@ -579,12 +604,12 @@ if (hrdExcelInput) {
         const handleImportedRows = (imported) => {
             if (!imported || imported.length === 0) {
                 showExcelStatus(false, isBn
-                    ? 'ফাইলে কোনো বৈধ জনশক্তির তথ্য পাওয়া যায়নি। Name/নাম কলাম আছে কিনা যাচাই করুন।'
+                    ? 'ফাইলে কোনো বৈধ জনশক্তির তথ্য পাওয়া যায়নি। Name/নাম কলাম আছে কিনা যাচাই করুন।'
                     : 'No valid member rows found in the file. Please ensure a Name column is present.');
                 return;
             }
 
-            let members = importMode === 'replace' ? [] : (JSON.parse(localStorage.getItem('ics_members')) || []);
+            let members = importMode === 'replace' ? [] : [...(adminState.ics_members || [])];
             let maxId = members.length > 0 ? Math.max(...members.map(m => Number(m.id) || 100)) : 100;
 
             imported.forEach(item => {
@@ -607,13 +632,11 @@ if (hrdExcelInput) {
                 }
             });
 
-            localStorage.setItem('ics_members', JSON.stringify(members));
-            renderMembersTable();
-            calculateSummaryStats();
-
-            showExcelStatus(true, isBn
-                ? `সফলভাবে ${imported.length} জন জনশক্তির তথ্য আপলোড হয়েছে এবং মূল সাইটে যুক্ত হয়েছে।`
-                : `Successfully imported ${imported.length} member(s). Changes are now live on the main site.`);
+            saveToFirebase('ics_members', members).then(() => {
+                showExcelStatus(true, isBn
+                    ? `সফলভাবে ${imported.length} জন জনশক্তির তথ্য ক্লাউডে আপলোড হয়েছে এবং মূল সাইটে লাইভ হয়েছে।`
+                    : `Successfully imported ${imported.length} member(s) to cloud. Changes are now live on the main site.`);
+            });
         };
 
         if (typeof XLSX !== 'undefined') {
@@ -632,7 +655,7 @@ if (hrdExcelInput) {
                     handleImportedRows(allImported);
                 } catch (err) {
                     showExcelStatus(false, isBn
-                        ? 'এক্সেল ফাইলটি পড়া যায়নি। সঠিক .xlsx, .xls বা .csv ফাইল দিন।'
+                        ? 'এক্সেল ফাইলটি পড়া যায়নি। সঠিক .xlsx, .xls বা .csv ফাইল দিন।'
                         : 'Could not read the Excel file. Please upload a valid .xlsx, .xls, or .csv file.');
                 } finally {
                     hrdExcelInput.value = '';
@@ -646,7 +669,7 @@ if (hrdExcelInput) {
                     const matrix = parseCsvRowsFallback(String(ev.target.result || ''));
                     handleImportedRows(extractMembersFromMatrix(matrix, defaultRank));
                 } catch (err) {
-                    showExcelStatus(false, isBn ? 'CSV ফাইলটি পড়া যায়নি।' : 'Could not parse CSV file.');
+                    showExcelStatus(false, isBn ? 'CSV ফাইলটি পড়া যায়নি।' : 'Could not parse CSV file.');
                 } finally {
                     hrdExcelInput.value = '';
                 }
@@ -654,7 +677,7 @@ if (hrdExcelInput) {
             reader.readAsText(file, 'UTF-8');
         } else {
             showExcelStatus(false, isBn
-                ? 'অফলাইনে .xlsx পড়ার লাইব্রেরি লোড হয়নি। অনুগ্রহ করে ইন্টারনেট সংযোগ দিন অথবা .csv ফাইল আপলোড করুন।'
+                ? 'অফলাইনে .xlsx পড়ার লাইব্রেরি লোড হয়নি। অনুগ্রহ করে ইন্টারনেট সংযোগ দিন অথবা .csv ফাইল আপলোড করুন।'
                 : 'Excel library did not load offline. Please connect to the internet or upload a .csv file.');
             hrdExcelInput.value = '';
         }
@@ -691,7 +714,7 @@ window.downloadMembersTemplate = function() {
 const noticeForm = document.getElementById('notice-form');
 
 function renderNoticesTable() {
-    const notices = JSON.parse(localStorage.getItem('ics_notices')) || [];
+    const notices = adminState.ics_notices || [];
     const tbody = document.getElementById('notices-tbody');
     if (!tbody) return;
 
@@ -752,7 +775,7 @@ const noticeEditForm = document.getElementById('notice-edit-form');
 let editNoticeId = null;
 
 window.openEditNoticeModal = function(id) {
-    const notices = JSON.parse(localStorage.getItem('ics_notices')) || [];
+    const notices = adminState.ics_notices || [];
     const notice = notices.find(n => n.id === id);
     if (!notice) return;
 
@@ -779,12 +802,12 @@ if (noticeEditForm) {
         const text = document.getElementById('edit-notice-text').value.trim();
         if (!title || !text) return;
 
-        const notices = (JSON.parse(localStorage.getItem('ics_notices')) || []).map(n =>
+        const notices = (adminState.ics_notices || []).map(n =>
             n.id === editNoticeId ? { ...n, category, date, title, text } : n
         );
-        localStorage.setItem('ics_notices', JSON.stringify(notices));
-        closeNoticeModal();
-        renderNoticesTable();
+        saveToFirebase('ics_notices', notices).then(() => {
+            closeNoticeModal();
+        });
     });
 }
 
@@ -795,10 +818,9 @@ if (noticeForm) {
         const title = document.getElementById('notice-title').value;
         const text = document.getElementById('notice-text').value;
 
-        const notices = JSON.parse(localStorage.getItem('ics_notices')) || [];
-        
+        const notices = [...(adminState.ics_notices || [])];
         const newNotice = {
-            id: notices.length > 0 ? Math.max(...notices.map(n => n.id)) + 1 : 1,
+            id: notices.length > 0 ? Math.max(...notices.map(n => Number(n.id))) + 1 : 1,
             date: new Date().toISOString().substring(0, 10),
             category: category,
             title: title,
@@ -806,20 +828,17 @@ if (noticeForm) {
         };
 
         notices.push(newNotice);
-        localStorage.setItem('ics_notices', JSON.stringify(notices));
-        
-        alert('Notice posted successfully! It will instantly appear on the main website ticker and noticeboard.');
-        noticeForm.reset();
-        renderNoticesTable();
+        saveToFirebase('ics_notices', notices).then(() => {
+            alert('Notice posted successfully! It is now live on the main website ticker and noticeboard.');
+            noticeForm.reset();
+        });
     });
 }
 
 window.deleteNotice = function(id) {
     if (confirm('Are you sure you want to delete this notice?')) {
-        let notices = JSON.parse(localStorage.getItem('ics_notices')) || [];
-        notices = notices.filter(n => n.id !== id);
-        localStorage.setItem('ics_notices', JSON.stringify(notices));
-        renderNoticesTable();
+        const notices = (adminState.ics_notices || []).filter(n => n.id !== id);
+        saveToFirebase('ics_notices', notices);
     }
 };
 
@@ -831,13 +850,11 @@ const branchEditForm = document.getElementById('branch-edit-form');
 let editBranchId = null;
 
 function getBranchesList() {
-    return JSON.parse(localStorage.getItem('ics_branches')) || [];
+    return adminState.ics_branches || [];
 }
 
 function saveBranchesList(list) {
-    localStorage.setItem('ics_branches', JSON.stringify(list));
-    updateBranchSuggestions();
-    calculateSummaryStats();
+    saveToFirebase('ics_branches', list);
 }
 
 function updateBranchSuggestions() {
@@ -961,13 +978,11 @@ if (branchForm) {
         const status = document.getElementById('branch-status-input').value;
         if (!name) return;
 
-        const branches = getBranchesList();
-        const nextId = branches.length > 0 ? Math.max(...branches.map(b => b.id)) + 1 : 1;
+        const branches = [...getBranchesList()];
+        const nextId = branches.length > 0 ? Math.max(...branches.map(b => Number(b.id))) + 1 : 1;
         branches.push({ id: nextId, name, area, type, status });
         saveBranchesList(branches);
-
         branchForm.reset();
-        renderBranchesTable();
     });
 }
 
@@ -978,9 +993,9 @@ if (branchBulkForm) {
         const lines = raw.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
         if (lines.length === 0) return;
 
-        const branches = getBranchesList();
+        const branches = [...getBranchesList()];
         const existingNames = new Set(branches.map(b => (b.name || '').toLowerCase()));
-        let nextId = branches.length > 0 ? Math.max(...branches.map(b => b.id)) + 1 : 1;
+        let nextId = branches.length > 0 ? Math.max(...branches.map(b => Number(b.id))) + 1 : 1;
 
         lines.forEach(line => {
             if (!existingNames.has(line.toLowerCase())) {
@@ -997,7 +1012,6 @@ if (branchBulkForm) {
 
         saveBranchesList(branches);
         branchBulkForm.reset();
-        renderBranchesTable();
     });
 }
 
@@ -1031,32 +1045,29 @@ if (branchEditForm) {
         );
         saveBranchesList(branches);
         closeBranchModal();
-        renderBranchesTable();
     });
 }
 
 window.moveBranch = function(id, delta) {
-    const branches = getBranchesList();
+    const branches = [...getBranchesList()];
     const index = branches.findIndex(b => b.id === id);
     const targetIndex = index + delta;
     if (index < 0 || targetIndex < 0 || targetIndex >= branches.length) return;
     [branches[index], branches[targetIndex]] = [branches[targetIndex], branches[index]];
     saveBranchesList(branches);
-    renderBranchesTable();
 };
 
 window.deleteBranch = function(id) {
     if (confirm('Are you sure you want to delete this branch?')) {
         const branches = getBranchesList().filter(b => b.id !== id);
         saveBranchesList(branches);
-        renderBranchesTable();
     }
 };
 
 // 7.2 Office Contact Information Settings (Home Page Contact Cards)
 const DEFAULT_CONTACT_INFO = {
     locationEn: 'West Sylhet Complex, Subidbazar, Sylhet City',
-    locationBn: 'ওয়েস্ট সিলেট কমপ্লেক্স, সুবিদবাজার, সিলেট শহর',
+    locationBn: 'ওয়েস্ট সিলেট কমপ্লেক্স, সুবিদবাজার, সিলেট শহর',
     phone: '01402602247',
     phoneNoteEn: '(Secretary)',
     phoneNoteBn: '(সেক্রেটারি)',
@@ -1068,7 +1079,7 @@ const contactInfoForm = document.getElementById('contact-info-form');
 const contactInfoStatus = document.getElementById('contact-info-status');
 
 function getContactInfoSettings() {
-    const saved = JSON.parse(localStorage.getItem('ics_contact_info') || 'null');
+    const saved = adminState.ics_contact_info;
     return saved ? { ...DEFAULT_CONTACT_INFO, ...saved } : { ...DEFAULT_CONTACT_INFO };
 }
 
@@ -1103,22 +1114,23 @@ if (contactInfoForm) {
             whatsapp: document.getElementById('cfg-whatsapp').value.trim(),
             email: document.getElementById('cfg-email').value.trim()
         };
-        localStorage.setItem('ics_contact_info', JSON.stringify(nextCfg));
-        const isBn = window.ICS_I18N && window.ICS_I18N.getLang() === 'bn';
-        showContactSettingsStatus(true, isBn
-            ? 'যোগাযোগের তথ্য সংরক্ষণ করা হয়েছে এবং হোম পেজে আপডেট হয়েছে।'
-            : 'Office contact information saved and updated on the Home page.');
+        saveToFirebase('ics_contact_info', nextCfg).then(() => {
+            const isBn = window.ICS_I18N && window.ICS_I18N.getLang() === 'bn';
+            showContactSettingsStatus(true, isBn
+                ? 'যোগাযোগের তথ্য ক্লাউডে সংরক্ষণ করা হয়েছে এবং হোম পেজে লাইভ আপডেট হয়েছে।'
+                : 'Office contact information saved to cloud and updated live on the Home page.');
+        });
     });
 }
 
 window.resetContactInfoDefaults = function() {
     const isBn = window.ICS_I18N && window.ICS_I18N.getLang() === 'bn';
-    if (confirm(isBn ? 'যোগাযোগের তথ্য ডিফল্ট অবস্থায় ফিরিয়ে আনবেন?' : 'Restore default office contact information?')) {
-        localStorage.setItem('ics_contact_info', JSON.stringify(DEFAULT_CONTACT_INFO));
-        loadContactInfoSettingsForm();
-        showContactSettingsStatus(true, isBn
-            ? 'ডিফল্ট যোগাযোগের তথ্য পুনরায় সেট করা হয়েছে।'
-            : 'Default office contact information restored.');
+    if (confirm(isBn ? 'যোগাযোগের তথ্য ডিফল্ট অবস্থায় ফিরিয়ে আনবেন?' : 'Restore default office contact information?')) {
+        saveToFirebase('ics_contact_info', DEFAULT_CONTACT_INFO).then(() => {
+            showContactSettingsStatus(true, isBn
+                ? 'ডিফল্ট যোগাযোগের তথ্য পুনরায় সেট করা হয়েছে।'
+                : 'Default office contact information restored.');
+        });
     }
 };
 
@@ -1126,7 +1138,7 @@ window.resetContactInfoDefaults = function() {
 const transactionForm = document.getElementById('transaction-form');
 
 function renderTransactionsTable() {
-    const transactions = JSON.parse(localStorage.getItem('ics_transactions')) || [];
+    const transactions = adminState.ics_transactions || [];
     const tbody = document.getElementById('transactions-tbody');
     const totalReceiptsEl = document.getElementById('ledger-total-receipts');
     const totalExpensesEl = document.getElementById('ledger-total-expenses');
@@ -1135,14 +1147,13 @@ function renderTransactionsTable() {
     if (!tbody) return;
 
     tbody.innerHTML = '';
-    
     let totalIncome = 0;
     let totalExpense = 0;
 
     const unit = tr('dyn_currency', 'BDT');
     transactions.forEach(t => {
-        if (t.type === 'Income') totalIncome += t.amount;
-        else totalExpense += t.amount;
+        if (t.type === 'Income') totalIncome += Number(t.amount) || 0;
+        else totalExpense += Number(t.amount) || 0;
 
         const trEl = document.createElement('tr');
         const typeLabel = t.type === 'Income' ? tr('dyn_type_income', 'Income') : tr('dyn_type_expense', 'Expense');
@@ -1151,7 +1162,7 @@ function renderTransactionsTable() {
             <td>${t.date}</td>
             <td style="color: ${t.type === 'Income' ? 'var(--accent)' : '#ef4444'}; font-weight:600;">${typeLabel}</td>
             <td>${t.category}</td>
-            <td><strong>${t.amount.toLocaleString()} ${unit}</strong></td>
+            <td><strong>${Number(t.amount).toLocaleString()} ${unit}</strong></td>
             <td>${t.desc}</td>
             <td>
                 <button class="action-btn delete" onclick="deleteTransaction('${t.id}')">${tr('dyn_delete', '🗑️ Delete')}</button>
@@ -1164,7 +1175,6 @@ function renderTransactionsTable() {
         tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--text-secondary);">No ledger records log.</td></tr>`;
     }
 
-    // Update balances on Finance panel
     if (totalReceiptsEl) totalReceiptsEl.innerText = totalIncome.toLocaleString() + ' ' + unit;
     if (totalExpensesEl) totalExpensesEl.innerText = totalExpense.toLocaleString() + ' ' + unit;
     if (ledgerNetEl) {
@@ -1187,9 +1197,7 @@ if (transactionForm) {
             return;
         }
 
-        const transactions = JSON.parse(localStorage.getItem('ics_transactions')) || [];
-        
-        // Random TxnID generator
+        const transactions = [...(adminState.ics_transactions || [])];
         const id = 'TXN-' + Math.floor(100000 + Math.random() * 900000);
 
         const newTxn = {
@@ -1202,24 +1210,17 @@ if (transactionForm) {
         };
 
         transactions.unshift(newTxn);
-        localStorage.setItem('ics_transactions', JSON.stringify(transactions));
-        
-        alert(`Transaction ${id} registered successfully!`);
-        transactionForm.reset();
-        renderTransactionsTable();
-        renderChart();
-        calculateSummaryStats();
+        saveToFirebase('ics_transactions', transactions).then(() => {
+            alert(`Transaction ${id} registered successfully and synced to cloud!`);
+            transactionForm.reset();
+        });
     });
 }
 
 window.deleteTransaction = function(id) {
     if (confirm('Are you sure you want to delete this transaction record?')) {
-        let transactions = JSON.parse(localStorage.getItem('ics_transactions')) || [];
-        transactions = transactions.filter(t => t.id !== id);
-        localStorage.setItem('ics_transactions', JSON.stringify(transactions));
-        renderTransactionsTable();
-        renderChart();
-        calculateSummaryStats();
+        const transactions = (adminState.ics_transactions || []).filter(t => t.id !== id);
+        saveToFirebase('ics_transactions', transactions);
     }
 };
 
@@ -1227,13 +1228,11 @@ window.deleteTransaction = function(id) {
 const messageModal = document.getElementById('message-modal');
 
 function renderInboxTable() {
-    const messages = JSON.parse(localStorage.getItem('ics_messages')) || [];
+    const messages = adminState.ics_messages || [];
     const tbody = document.getElementById('messages-tbody');
     if (!tbody) return;
 
     tbody.innerHTML = '';
-    
-    // Sort messages: newest first
     const sorted = [...messages].sort((a,b) => b.id - a.id);
 
     if (sorted.length === 0) {
@@ -1264,24 +1263,19 @@ function renderInboxTable() {
 }
 
 window.openMessageDetail = function(id) {
-    const messages = JSON.parse(localStorage.getItem('ics_messages')) || [];
+    const messages = [...(adminState.ics_messages || [])];
     const messageIndex = messages.findIndex(m => m.id === id);
     if (messageIndex === -1) return;
 
     const msg = messages[messageIndex];
-    
-    // Update message modal details
     document.getElementById('msg-detail-sender').innerText = `${msg.name} (${msg.email})`;
     document.getElementById('msg-detail-subject').innerText = msg.subject;
     document.getElementById('msg-detail-date').innerText = msg.date;
     document.getElementById('msg-detail-body').innerText = msg.message;
 
-    // Mark as Read
     if (msg.status === 'Unread') {
-        messages[messageIndex].status = 'Read';
-        localStorage.setItem('ics_messages', JSON.stringify(messages));
-        renderInboxTable();
-        calculateSummaryStats();
+        messages[messageIndex] = { ...msg, status: 'Read' };
+        saveToFirebase('ics_messages', messages);
     }
 
     if (messageModal) messageModal.style.display = 'flex';
@@ -1293,11 +1287,8 @@ window.closeMessageModal = function() {
 
 window.deleteMessage = function(id) {
     if (confirm('Are you sure you want to delete this message from your inbox?')) {
-        let messages = JSON.parse(localStorage.getItem('ics_messages')) || [];
-        messages = messages.filter(m => m.id !== id);
-        localStorage.setItem('ics_messages', JSON.stringify(messages));
-        renderInboxTable();
-        calculateSummaryStats();
+        const messages = (adminState.ics_messages || []).filter(m => m.id !== id);
+        saveToFirebase('ics_messages', messages);
     }
 };
 
@@ -1320,14 +1311,11 @@ let editCouncilId = null;
 let pendingCouncilAvatar = '';
 
 function getCouncilList() {
-    if (!localStorage.getItem('ics_council')) {
-        localStorage.setItem('ics_council', JSON.stringify(DEFAULT_COUNCIL_MEMBERS));
-    }
-    return JSON.parse(localStorage.getItem('ics_council')) || [];
+    return adminState.ics_council || [];
 }
 
 function saveCouncilList(list) {
-    localStorage.setItem('ics_council', JSON.stringify(list));
+    saveToFirebase('ics_council', list);
 }
 
 function updateCouncilPhotoPreview(dataUrl) {
@@ -1495,9 +1483,9 @@ if (councilForm) {
         const designation = document.getElementById('council-designation').value.trim();
         if (!name || !designation) return;
 
-        let council = getCouncilList();
+        let council = [...getCouncilList()];
         if (editCouncilId === null) {
-            const nextId = council.length > 0 ? Math.max(...council.map(m => m.id)) + 1 : 1;
+            const nextId = council.length > 0 ? Math.max(...council.map(m => Number(m.id))) + 1 : 1;
             council.push({ id: nextId, name, designation, avatar: pendingCouncilAvatar });
         } else {
             council = council.map(m =>
@@ -1507,32 +1495,28 @@ if (councilForm) {
 
         saveCouncilList(council);
         closeCouncilModal();
-        renderCouncilTable();
     });
 }
 
 window.moveCouncilMember = function(id, delta) {
-    const council = getCouncilList();
+    const council = [...getCouncilList()];
     const index = council.findIndex(m => m.id === id);
     const targetIndex = index + delta;
     if (index < 0 || targetIndex < 0 || targetIndex >= council.length) return;
     [council[index], council[targetIndex]] = [council[targetIndex], council[index]];
     saveCouncilList(council);
-    renderCouncilTable();
 };
 
 window.deleteCouncilMember = function(id) {
     if (confirm('Are you sure you want to remove this member from the Executive Council?')) {
         const council = getCouncilList().filter(m => m.id !== id);
         saveCouncilList(council);
-        renderCouncilTable();
     }
 };
 
 window.resetCouncilDefaults = function() {
     if (confirm('Restore the default District Council Executive Body list?')) {
         saveCouncilList(DEFAULT_COUNCIL_MEMBERS);
-        renderCouncilTable();
     }
 };
 
@@ -1568,41 +1552,9 @@ if (adminFooterTopLink) {
 if (window.ICS_I18N) {
     window.ICS_I18N.onChange(() => {
         document.title = tr('dyn_title_admin', 'Admin Dashboard | Bangladesh Islami Chhatrashibir, Sylhet District West');
-        calculateSummaryStats();
-        renderRecentInquiries();
-        renderChart();
-        renderCouncilTable();
-        renderMembersTable();
-        renderNoticesTable();
-        renderBranchesTable();
-        renderTransactionsTable();
-        renderInboxTable();
+        refreshAllAdminUI();
     });
 }
 
 // Start application
 checkAuth();
-<!-- Firebase App & Realtime Database SDK -->
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-
-<script>
-  // ধাপ ২ থেকে পাওয়া আপনার নিজের কনফিগ কোডটি এখানে বসাবেন
-  const firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR_PROJECT.firebaseapp.com",
-    databaseURL: "https://YOUR_PROJECT-default-rtdb.asia-southeast1.firebasedatabase.app",
-    projectId: "YOUR_PROJECT_ID",
-    storageBucket: "YOUR_PROJECT.appspot.com",
-    messagingSenderId: "YOUR_SENDER_ID",
-    appId: "YOUR_APP_ID"
-  };
-
-  // Firebase চালু করা
-  firebase.initializeApp(firebaseConfig);
-  const db = firebase.database();
-</script>
-
-<!-- এরপর আপনার আগের স্ক্রিপ্ট থাকবে -->
-<script src="i18n.js?v=1"></script>
-<script src="main.js?v=4"></script>
