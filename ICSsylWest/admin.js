@@ -1582,3 +1582,27 @@ if (window.ICS_I18N) {
 
 // Start application
 checkAuth();
+<!-- Firebase App & Realtime Database SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+
+<script>
+  // ধাপ ২ থেকে পাওয়া আপনার নিজের কনফিগ কোডটি এখানে বসাবেন
+  const firebaseConfig = {
+    apiKey: "YOUR_API_KEY",
+    authDomain: "YOUR_PROJECT.firebaseapp.com",
+    databaseURL: "https://YOUR_PROJECT-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "YOUR_PROJECT_ID",
+    storageBucket: "YOUR_PROJECT.appspot.com",
+    messagingSenderId: "YOUR_SENDER_ID",
+    appId: "YOUR_APP_ID"
+  };
+
+  // Firebase চালু করা
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+</script>
+
+<!-- এরপর আপনার আগের স্ক্রিপ্ট থাকবে -->
+<script src="i18n.js?v=1"></script>
+<script src="main.js?v=4"></script>
