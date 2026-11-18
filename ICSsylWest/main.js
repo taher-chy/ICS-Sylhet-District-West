@@ -1,96 +1,130 @@
-// Database Seeding Logic (run on load)
-function seedDatabase() {
-    // 1. Notices / News
-    if (!localStorage.getItem('ics_notices')) {
-        const defaultNotices = [
-            {
-                id: 1,
-                date: '2026-06-15',
-                category: 'Office Notice',
-                title: 'Monthly Workers Meeting - June 2026',
-                text: 'The monthly review and planning session for Sylhet District West will be held on Friday, June 19th, at 3:00 PM at the district office. All department secretaries are requested to join with report files.'
-            },
-            {
-                id: 2,
-                date: '2026-06-12',
-                category: 'HRD Department',
-                title: 'Register for Leadership Development Course (Batch 12)',
-                text: 'Applications are invited for the Leadership Development Program commencing July 1st. Training includes organizational leadership, public speech, and social management modules.'
-            },
-            {
-                id: 3,
-                date: '2026-06-08',
-                category: 'Finance Department',
-                title: 'Sylhet Flood Welfare Donation Collection',
-                text: 'We are raising funds for medical aid and emergency food supply in flood-impacted zones of West Sylhet. Please donate generously via the Finance portal.'
-            }
-        ];
-        localStorage.setItem('ics_notices', JSON.stringify(defaultNotices));
+// ==========================================
+// Firebase Realtime Database State & Sync
+// ==========================================
+const appState = {
+    ics_notices: [],
+    ics_members: [],
+    ics_transactions: [],
+    ics_messages: [],
+    ics_council: [],
+    ics_branches: [],
+    ics_contact_info: null
+};
+
+// Database Seeding & Real-time Listener
+function initFirebaseSync() {
+    if (typeof db === 'undefined') {
+        console.error('Firebase database (db) is not initialized! Check your index.html script.');
+        return;
     }
 
-    // 2. Members (HRD)
-    if (!localStorage.getItem('ics_members') || !localStorage.getItem('ics_members').includes('সদস্য')) {
-        const defaultMembers = [
-            { id: 101, name: 'Kamran Chowdhury', rank: 'সদস্য (Member)', branch: 'Beanibazar', status: 'Active', training: '2026-06-01' },
-            { id: 102, name: 'Tanveer Ahmed', rank: 'সাথী (Associate)', branch: 'Sylhet Sadar', status: 'Active', training: '2026-05-10' },
-            { id: 103, name: 'Mahdi Al-Hasan', rank: 'সদস্য প্রার্থী (Member Candidate)', branch: 'Balaganj', status: 'Active', training: '2026-06-14' },
-            { id: 104, name: 'Jamil Hasan', rank: 'সাথী প্রার্থী (Associate Candidate)', branch: 'Fenchuganj', status: 'Active', training: '2026-05-24' },
-            { id: 105, name: 'Rayhan Chowdhury', rank: 'সাথী প্রার্থী (Associate Candidate)', branch: 'Golapganj', status: 'Active', training: '2026-03-15' }
-        ];
-        localStorage.setItem('ics_members', JSON.stringify(defaultMembers));
-    }
+    const rootRef = db.ref('ics_data');
 
-    // 3. Transactions (Finance)
-    if (!localStorage.getItem('ics_transactions')) {
-        const defaultTransactions = [
-            { id: 'TXN-001', date: '2026-06-15', type: 'Income', category: 'Monthly Subscription', amount: 15000, desc: 'Rukn subscription collection' },
-            { id: 'TXN-002', date: '2026-06-14', type: 'Expense', category: 'Office Rent', amount: 8000, desc: 'District West Office payment' },
-            { id: 'TXN-003', date: '2026-06-12', type: 'Income', category: 'Flood Relief Donation', amount: 45000, desc: 'General public donation drive' },
-            { id: 'TXN-004', date: '2026-06-10', type: 'Expense', category: 'Social Project', amount: 12000, desc: 'Free medical camp medicine purchase' },
-            { id: 'TXN-005', date: '2026-06-05', type: 'Income', category: 'Book Sale', amount: 4800, desc: 'HRD Islamic syllabus book distribution' }
-        ];
-        localStorage.setItem('ics_transactions', JSON.stringify(defaultTransactions));
-    }
+    // 1. Seed default data only if Firebase database is completely empty
+    rootRef.once('value').then((snapshot) => {
+        const data = snapshot.val() || {};
+        const updates = {};
 
-    // 4. Messages (Inbox)
-    if (!localStorage.getItem('ics_messages')) {
-        const defaultMessages = [
-            {
-                id: 1,
-                date: '2026-06-15 14:30',
-                name: 'Kazi Mahbub',
-                email: 'mahbub@gmail.com',
-                subject: 'Welfare Query',
-                message: 'I want to establish a small free library in our union branch. How can the Office Department help us with Islamic books?',
-                status: 'Unread'
-            },
-            {
-                id: 2,
-                date: '2026-06-14 10:15',
-                name: 'Dr. Shahab Uddin',
-                email: 'shahab.med@outlook.com',
-                subject: 'Medical Camp Volunteering',
-                message: 'Assalamu alaikum. I am a medical practitioner in Sylhet. I would like to volunteer in your upcoming weekly free healthcare clinics.',
-                status: 'Read'
-            }
-        ];
-        localStorage.setItem('ics_messages', JSON.stringify(defaultMessages));
-    }
+        if (!data.ics_notices) {
+            updates.ics_notices = [
+                {
+                    id: 1,
+                    date: '2026-06-15',
+                    category: 'Office Notice',
+                    title: 'Monthly Workers Meeting - June 2026',
+                    text: 'The monthly review and planning session for Sylhet District West will be held on Friday, June 19th, at 3:00 PM at the district office. All department secretaries are requested to join with report files.'
+                },
+                {
+                    id: 2,
+                    date: '2026-06-12',
+                    category: 'HRD Department',
+                    title: 'Register for Leadership Development Course (Batch 12)',
+                    text: 'Applications are invited for the Leadership Development Program commencing July 1st. Training includes organizational leadership, public speech, and social management modules.'
+                },
+                {
+                    id: 3,
+                    date: '2026-06-08',
+                    category: 'Finance Department',
+                    title: 'Sylhet Flood Welfare Donation Collection',
+                    text: 'We are raising funds for medical aid and emergency food supply in flood-impacted zones of West Sylhet. Please donate generously via the Finance portal.'
+                }
+            ];
+        }
 
-    // 5. District Council Executive Body
-    if (!localStorage.getItem('ics_council')) {
-        const defaultCouncil = [
-            { id: 1, name: 'Kamil Ahmed', designation: 'District President', avatar: '' },
-            { id: 2, name: 'Motiur Rahman', designation: 'HRD Secretary', avatar: '' },
-            { id: 3, name: 'Nazrul Islam', designation: 'Office Secretary', avatar: '' },
-            { id: 4, name: 'Abidur Rahman', designation: 'Finance Secretary', avatar: '' }
-        ];
-        localStorage.setItem('ics_council', JSON.stringify(defaultCouncil));
-    }
+        if (!data.ics_members) {
+            updates.ics_members = [
+                { id: 101, name: 'Kamran Chowdhury', rank: 'সদস্য (Member)', branch: 'Beanibazar', status: 'Active', training: '2026-06-01' },
+                { id: 102, name: 'Tanveer Ahmed', rank: 'সাথী (Associate)', branch: 'Sylhet Sadar', status: 'Active', training: '2026-05-10' },
+                { id: 103, name: 'Mahdi Al-Hasan', rank: 'সদস্য প্রার্থী (Member Candidate)', branch: 'Balaganj', status: 'Active', training: '2026-06-14' },
+                { id: 104, name: 'Jamil Hasan', rank: 'সাথী প্রার্থী (Associate Candidate)', branch: 'Fenchuganj', status: 'Active', training: '2026-05-24' },
+                { id: 105, name: 'Rayhan Chowdhury', rank: 'সাথী প্রার্থী (Associate Candidate)', branch: 'Golapganj', status: 'Active', training: '2026-03-15' }
+            ];
+        }
+
+        if (!data.ics_transactions) {
+            updates.ics_transactions = [
+                { id: 'TXN-001', date: '2026-06-15', type: 'Income', category: 'Monthly Subscription', amount: 15000, desc: 'Rukn subscription collection' },
+                { id: 'TXN-002', date: '2026-06-14', type: 'Expense', category: 'Office Rent', amount: 8000, desc: 'District West Office payment' },
+                { id: 'TXN-003', date: '2026-06-12', type: 'Income', category: 'Flood Relief Donation', amount: 45000, desc: 'General public donation drive' },
+                { id: 'TXN-004', date: '2026-06-10', type: 'Expense', category: 'Social Project', amount: 12000, desc: 'Free medical camp medicine purchase' },
+                { id: 'TXN-005', date: '2026-06-05', type: 'Income', category: 'Book Sale', amount: 4800, desc: 'HRD Islamic syllabus book distribution' }
+            ];
+        }
+
+        if (!data.ics_messages) {
+            updates.ics_messages = [
+                {
+                    id: 1,
+                    date: '2026-06-15 14:30',
+                    name: 'Kazi Mahbub',
+                    email: 'mahbub@gmail.com',
+                    subject: 'Welfare Query',
+                    message: 'I want to establish a small free library in our union branch. How can the Office Department help us with Islamic books?',
+                    status: 'Unread'
+                },
+                {
+                    id: 2,
+                    date: '2026-06-14 10:15',
+                    name: 'Dr. Shahab Uddin',
+                    email: 'shahab.med@outlook.com',
+                    subject: 'Medical Camp Volunteering',
+                    message: 'Assalamu alaikum. I am a medical practitioner in Sylhet. I would like to volunteer in your upcoming weekly free healthcare clinics.',
+                    status: 'Read'
+                }
+            ];
+        }
+
+        if (!data.ics_council) {
+            updates.ics_council = [
+                { id: 1, name: 'Kamil Ahmed', designation: 'District President', avatar: '' },
+                { id: 2, name: 'Motiur Rahman', designation: 'HRD Secretary', avatar: '' },
+                { id: 3, name: 'Nazrul Islam', designation: 'Office Secretary', avatar: '' },
+                { id: 4, name: 'Abidur Rahman', designation: 'Finance Secretary', avatar: '' }
+            ];
+        }
+
+        if (Object.keys(updates).length > 0) {
+            rootRef.update(updates);
+        }
+    });
+
+    // 2. Listen for Real-Time Updates from Firebase
+    rootRef.on('value', (snapshot) => {
+        const data = snapshot.val() || {};
+        appState.ics_notices = data.ics_notices ? Object.values(data.ics_notices) : [];
+        appState.ics_members = data.ics_members ? Object.values(data.ics_members) : [];
+        appState.ics_transactions = data.ics_transactions ? Object.values(data.ics_transactions) : [];
+        appState.ics_messages = data.ics_messages ? Object.values(data.ics_messages) : [];
+        appState.ics_council = data.ics_council ? Object.values(data.ics_council) : [];
+        appState.ics_branches = data.ics_branches ? Object.values(data.ics_branches) : [];
+        appState.ics_contact_info = data.ics_contact_info || null;
+
+        // Refresh UI automatically whenever database changes
+        if (typeof window.refreshMainSiteState === 'function') {
+            window.refreshMainSiteState();
+        }
+    });
 }
-
-// Initialize and Seed Data
-seedDatabase();
 
 // DOM Element References
 const navbar = document.querySelector('.navbar');
@@ -231,21 +265,11 @@ function resolveRoute(hashString) {
         return { dept: parts[0], section: parts[1] };
     }
 
-    if (clean.startsWith('hrd-')) {
-        return { dept: 'hrd', section: clean };
-    }
-    if (clean.startsWith('office-')) {
-        return { dept: 'office', section: clean };
-    }
-    if (clean.startsWith('finance-')) {
-        return { dept: 'finance', section: clean };
-    }
-    if (clean.startsWith('home-')) {
-        return { dept: 'home', section: clean };
-    }
-    if (clean === 'contact') {
-        return { dept: 'home', section: 'contact' };
-    }
+    if (clean.startsWith('hrd-')) return { dept: 'hrd', section: clean };
+    if (clean.startsWith('office-')) return { dept: 'office', section: clean };
+    if (clean.startsWith('finance-')) return { dept: 'finance', section: clean };
+    if (clean.startsWith('home-')) return { dept: 'home', section: clean };
+    if (clean === 'contact') return { dept: 'home', section: 'contact' };
 
     return { dept: 'home', section: null };
 }
@@ -256,7 +280,6 @@ function switchPage(targetDept, targetSection = null) {
         targetDept = 'home';
     }
 
-    // 1. Update active state in desktop navbar
     navItems.forEach(item => {
         if (item.getAttribute('data-dept') === targetDept) {
             item.classList.add('active');
@@ -265,7 +288,6 @@ function switchPage(targetDept, targetSection = null) {
         }
     });
 
-    // 2. Update active state in mobile drawer cards
     document.querySelectorAll('.mobile-dept-card').forEach(card => {
         if (card.getAttribute('data-dept') === targetDept) {
             card.classList.add('active');
@@ -274,7 +296,6 @@ function switchPage(targetDept, targetSection = null) {
         }
     });
 
-    // 3. Update department active page container
     deptPages.forEach(page => {
         if (page.id === targetDept) {
             page.classList.add('active');
@@ -285,7 +306,6 @@ function switchPage(targetDept, targetSection = null) {
         }
     });
 
-    // 4. Update Navbar Theme & Body Classes
     if (navbar) {
         navbar.classList.remove('dept-theme-home', 'dept-theme-hrd', 'dept-theme-office', 'dept-theme-finance');
         navbar.classList.add(`dept-theme-${targetDept}`);
@@ -293,13 +313,9 @@ function switchPage(targetDept, targetSection = null) {
     document.body.classList.remove('theme-home', 'theme-hrd', 'theme-office', 'theme-finance');
     document.body.classList.add(`theme-${targetDept}`);
 
-    // 5. Update Document Title
     document.title = getDepartmentTitle(targetDept);
-
-    // 6. Update sliding indicator pill
     setTimeout(updateSlidingPill, 30);
 
-    // 7. Trigger specific department view updates
     if (targetDept === 'hrd') {
         loadHRDWorkforce();
     } else if (targetDept === 'office') {
@@ -310,7 +326,6 @@ function switchPage(targetDept, targetSection = null) {
         renderPublicLedger();
     }
 
-    // 8. Handle section scroll if specified
     if (targetSection) {
         setTimeout(() => {
             const targetEl = document.getElementById(targetSection);
@@ -340,7 +355,6 @@ function updateSubnavActiveChip(deptId, activeSectionId) {
     });
 }
 
-// Setup smooth click handlers for all subnav chips
 document.querySelectorAll('.subnav-chip').forEach(chip => {
     chip.addEventListener('click', (e) => {
         e.preventDefault();
@@ -364,7 +378,6 @@ document.querySelectorAll('.subnav-chip').forEach(chip => {
     });
 });
 
-// Scrollspy for sub-navbar sections
 window.addEventListener('scroll', () => {
     const activePage = document.querySelector('.dept-page.active');
     if (!activePage) return;
@@ -391,20 +404,18 @@ window.addEventListener('scroll', () => {
     }
 }, { passive: true });
 
-// Listen for hash changes in URL
 window.addEventListener('hashchange', () => {
     const route = resolveRoute(window.location.hash);
     switchPage(route.dept, route.section);
 });
 
-// Initialize Route on initial page load
 const initialRoute = resolveRoute(window.location.hash);
 switchPage(initialRoute.dept, initialRoute.section);
 setTimeout(updateSlidingPill, 100);
 
 // 4. Render News Ticker Items
 function loadNewsTicker() {
-    const notices = JSON.parse(localStorage.getItem('ics_notices')) || [];
+    const notices = appState.ics_notices || [];
     if (tickerScroll) {
         tickerScroll.innerHTML = '';
         if (notices.length === 0) {
@@ -419,11 +430,10 @@ function loadNewsTicker() {
         });
     }
 }
-loadNewsTicker();
 
 // 5. Render Office Noticeboard
 function loadOfficeNoticeboard() {
-    const notices = JSON.parse(localStorage.getItem('ics_notices')) || [];
+    const notices = appState.ics_notices || [];
     if (noticeboardList) {
         noticeboardList.innerHTML = '';
         if (notices.length === 0) {
@@ -431,7 +441,6 @@ function loadOfficeNoticeboard() {
             return;
         }
         
-        // Sort by id descending (assuming higher id is newer)
         const sorted = [...notices].sort((a, b) => b.id - a.id);
         
         sorted.forEach(notice => {
@@ -456,9 +465,8 @@ function loadOfficeNoticeboard() {
         });
     }
 }
-loadOfficeNoticeboard();
 
-// 6. Contact Form Submission Handler
+// 6. Contact Form Submission Handler (Saves directly to Firebase)
 const contactForm = document.getElementById('ics-contact-form');
 if (contactForm) {
     contactForm.addEventListener('submit', (e) => {
@@ -474,10 +482,7 @@ if (contactForm) {
             return;
         }
 
-        // Retrieve existing messages from DB
-        const messages = JSON.parse(localStorage.getItem('ics_messages')) || [];
-        
-        // Create new message object
+        const messages = [...(appState.ics_messages || [])];
         const newMessage = {
             id: Date.now(),
             date: new Date().toISOString().replace('T', ' ').substring(0, 16),
@@ -489,25 +494,25 @@ if (contactForm) {
         };
 
         messages.push(newMessage);
-        localStorage.setItem('ics_messages', JSON.stringify(messages));
-
-        // Alert user of success
-        alert(`Assalamu alaikum, ${name}. Your message has been received! The Office Department will review it soon.`);
-        contactForm.reset();
+        db.ref('ics_data/ics_messages').set(messages)
+            .then(() => {
+                alert(`Assalamu alaikum, ${name}. Your message has been received! The Office Department will review it soon.`);
+                contactForm.reset();
+            })
+            .catch(err => {
+                alert('Error sending message: ' + err.message);
+            });
     });
 }
 
-// 7. Donation Form Interactive Amount & Submission Handler
+// 7. Donation Form Interactive Amount & Submission Handler (Saves directly to Firebase)
 const amountButtons = document.querySelectorAll('.amount-btn');
 const amountInput = document.getElementById('donation-amount');
 
 amountButtons.forEach(btn => {
     btn.addEventListener('click', () => {
-        // Toggle active states on buttons
         amountButtons.forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        
-        // Set input value
         if (amountInput) {
             amountInput.value = btn.getAttribute('data-value');
         }
@@ -516,7 +521,6 @@ amountButtons.forEach(btn => {
 
 if (amountInput) {
     amountInput.addEventListener('input', () => {
-        // Clear active buttons if custom value is typed
         amountButtons.forEach(b => b.classList.remove('active'));
     });
 }
@@ -541,9 +545,7 @@ if (donationForm) {
             return;
         }
 
-        // Update Finance Database (add as Income transaction)
-        const transactions = JSON.parse(localStorage.getItem('ics_transactions')) || [];
-        
+        const transactions = [...(appState.ics_transactions || [])];
         const newTxn = {
             id: txnid.toUpperCase(),
             date: new Date().toISOString().substring(0, 10),
@@ -553,37 +555,35 @@ if (donationForm) {
             desc: `Online donation by ${name} (${method}) - Contact: ${contact}`
         };
 
-        transactions.unshift(newTxn); // add to top of stack
-        localStorage.setItem('ics_transactions', JSON.stringify(transactions));
-
-        // Trigger visual success modal/alert
-        alert(`Jazakallahu Khairan! Your contribution of ${amount} BDT via ${method} has been logged. Transaction ID: ${txnid}. Our Finance Department will verify this transaction.`);
-        donationForm.reset();
-        amountButtons.forEach(b => b.classList.remove('active'));
-
-        // If the gauge element is present on this page, recalculate
-        recalculateFinanceGauge();
-        renderPublicLedger();
+        transactions.unshift(newTxn);
+        db.ref('ics_data/ics_transactions').set(transactions)
+            .then(() => {
+                alert(`Jazakallahu Khairan! Your contribution of ${amount} BDT via ${method} has been logged. Transaction ID: ${txnid}. Our Finance Department will verify this transaction.`);
+                donationForm.reset();
+                amountButtons.forEach(b => b.classList.remove('active'));
+            })
+            .catch(err => {
+                alert('Error logging donation: ' + err.message);
+            });
     });
 }
 
 // 8. Finance Gauge Calculations
 function recalculateFinanceGauge() {
-    const transactions = JSON.parse(localStorage.getItem('ics_transactions')) || [];
+    const transactions = appState.ics_transactions || [];
     let totalIncome = 0;
     let totalExpense = 0;
 
     transactions.forEach(t => {
         if (t.type === 'Income') {
-            totalIncome += t.amount;
+            totalIncome += Number(t.amount) || 0;
         } else {
-            totalExpense += t.amount;
+            totalExpense += Number(t.amount) || 0;
         }
     });
 
     const netBalance = totalIncome - totalExpense;
     
-    // Update labels in HTML
     const incLabel = document.getElementById('gauge-total-income');
     const expLabel = document.getElementById('gauge-total-expense');
     const netLabel = document.getElementById('gauge-net-balance');
@@ -595,7 +595,6 @@ function recalculateFinanceGauge() {
     if (expLabel) expLabel.innerText = totalExpense.toLocaleString() + ' ' + unit;
     if (netLabel) netLabel.innerText = netBalance.toLocaleString() + ' ' + unit;
 
-    // Target collection progress calculations (let's say target is 500,000 BDT)
     const target = 500000;
     const progressPercent = Math.min(Math.round((totalIncome / target) * 100), 100);
 
@@ -603,9 +602,6 @@ function recalculateFinanceGauge() {
         gaugeVal.innerText = progressPercent + '%';
     }
 
-    // Gauge stroke dashoffset math:
-    // SVG path length for radius-80 semicircle = π * 80 ≈ 252
-    // 252 offset = empty (0%), 0 offset = full (100%)
     if (gaugeBar) {
         const strokeOffset = 252 - (252 * (progressPercent / 100));
         gaugeBar.style.strokeDashoffset = strokeOffset;
@@ -617,7 +613,7 @@ function renderPublicLedger() {
     const tbody = document.getElementById('public-ledger-tbody');
     if (!tbody) return;
 
-    const transactions = JSON.parse(localStorage.getItem('ics_transactions')) || [];
+    const transactions = appState.ics_transactions || [];
     const searchInput = document.getElementById('public-txn-search');
     const filterSelect = document.getElementById('public-txn-filter');
 
@@ -657,28 +653,22 @@ function renderPublicLedger() {
     });
 }
 
-// Hook Search & Filter for Public Ledger
 const publicTxnSearch = document.getElementById('public-txn-search');
 const publicTxnFilter = document.getElementById('public-txn-filter');
 if (publicTxnSearch) publicTxnSearch.addEventListener('input', renderPublicLedger);
 if (publicTxnFilter) publicTxnFilter.addEventListener('change', renderPublicLedger);
 
-// Run calculations on load
-recalculateFinanceGauge();
-renderPublicLedger();
-
 // 9. HRD Workforce List Controller
 function loadHRDWorkforce() {
-    const members = JSON.parse(localStorage.getItem('ics_members')) || [];
+    const members = appState.ics_members || [];
     
     const membersTbody = document.getElementById('hrd-members-list-tbody');
     const memberCandsTbody = document.getElementById('hrd-member-cands-list-tbody');
     const sathisTbody = document.getElementById('hrd-sathis-list-tbody');
     const sathiCandsTbody = document.getElementById('hrd-sathi-cands-list-tbody');
 
-    if (!membersTbody) return; // Not loaded on home screen yet
+    if (!membersTbody) return;
 
-    // Clean tables
     membersTbody.innerHTML = '';
     memberCandsTbody.innerHTML = '';
     sathisTbody.innerHTML = '';
@@ -726,7 +716,6 @@ function loadHRDWorkforce() {
         }
     });
 
-    // Handle empty table states
     if (counts.member === 0) {
         membersTbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-secondary); padding: 15px;">${tr('dyn_wf_empty_1', 'No members found in this list.')}</td></tr>`;
     }
@@ -741,7 +730,6 @@ function loadHRDWorkforce() {
     }
 }
 
-// Switch Workforce Tab View
 window.switchWorkforceTab = function(tabId) {
     const tabBtns = document.querySelectorAll('.hrd-tabs-nav .amount-btn');
     tabBtns.forEach(btn => {
@@ -762,9 +750,6 @@ window.switchWorkforceTab = function(tabId) {
     });
 };
 
-// Run workforce calculations on load
-loadHRDWorkforce();
-
 // Back to top & footer smooth scroll support
 const footerTopBtn = document.getElementById('footer-top-btn');
 if (footerTopBtn) {
@@ -783,7 +768,7 @@ function renderExecutiveCouncil() {
     const grid = document.getElementById('home-council-grid');
     if (!grid) return;
 
-    const council = JSON.parse(localStorage.getItem('ics_council')) || [];
+    const council = appState.ics_council || [];
     grid.innerHTML = '';
 
     if (council.length === 0) {
@@ -824,14 +809,12 @@ function renderExecutiveCouncil() {
     });
 }
 
-renderExecutiveCouncil();
-
 // Render Sylhet District West Branches (Office Department)
 function renderPublicBranches() {
     const grid = document.getElementById('public-branches-grid');
     const badge = document.getElementById('public-branch-count-badge');
     const homeStat = document.getElementById('home-stat-branches');
-    const branches = JSON.parse(localStorage.getItem('ics_branches')) || [];
+    const branches = appState.ics_branches || [];
 
     if (homeStat) {
         homeStat.textContent = branches.length > 0 ? String(branches.length) : '17';
@@ -884,11 +867,9 @@ function renderPublicBranches() {
     });
 }
 
-renderPublicBranches();
-
 // Render Office Contact Information (from Admin Panel)
 function renderContactInfo() {
-    const saved = JSON.parse(localStorage.getItem('ics_contact_info') || 'null');
+    const saved = appState.ics_contact_info;
     if (!saved) return;
 
     const isBn = window.ICS_I18N && window.ICS_I18N.getLang() === 'bn';
@@ -924,33 +905,7 @@ function renderContactInfo() {
     }
 }
 
-renderContactInfo();
-document.addEventListener('DOMContentLoaded', renderContactInfo);
-
-window.addEventListener('storage', (e) => {
-    if (e.key === 'ics_council') {
-        renderExecutiveCouncil();
-    }
-    if (e.key === 'ics_branches') {
-        renderPublicBranches();
-    }
-    if (e.key === 'ics_members') {
-        loadHRDWorkforce();
-    }
-    if (e.key === 'ics_notices') {
-        loadNewsTicker();
-        loadOfficeNoticeboard();
-    }
-    if (e.key === 'ics_transactions') {
-        recalculateFinanceGauge();
-        renderPublicLedger();
-    }
-    if (e.key === 'ics_contact_info') {
-        renderContactInfo();
-    }
-});
-
-// Expose refresh function to other scopes if needed (like window)
+// Expose refresh function to other scopes
 window.refreshMainSiteState = function() {
     loadNewsTicker();
     loadOfficeNoticeboard();
@@ -971,27 +926,6 @@ if (window.ICS_I18N) {
         setTimeout(updateSlidingPill, 30);
     });
 }
-<!-- Firebase App & Realtime Database SDK -->
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 
-<script>
-  // ধাপ ২ থেকে পাওয়া আপনার নিজের কনফিগ কোডটি এখানে বসাবেন
-  const firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR_PROJECT.firebaseapp.com",
-    databaseURL: "https://YOUR_PROJECT-default-rtdb.asia-southeast1.firebasedatabase.app",
-    projectId: "YOUR_PROJECT_ID",
-    storageBucket: "YOUR_PROJECT.appspot.com",
-    messagingSenderId: "YOUR_SENDER_ID",
-    appId: "YOUR_APP_ID"
-  };
-
-  // Firebase চালু করা
-  firebase.initializeApp(firebaseConfig);
-  const db = firebase.database();
-</script>
-
-<!-- এরপর আপনার আগের স্ক্রিপ্ট থাকবে -->
-<script src="i18n.js?v=1"></script>
-<script src="main.js?v=4"></script>
+// Start Firebase Real-time Sync
+initFirebaseSync();
