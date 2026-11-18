@@ -143,9 +143,7 @@
                                 <th data-i18n="col_status">Status</th>
                             </tr>
                         </thead>
-                        <tbody id="recent-inquiries-tbody">
-                            <!-- Populated dynamically -->
-                        </tbody>
+                        <tbody id="recent-inquiries-tbody"></tbody>
                     </table>
                 </div>
             </div>
@@ -174,9 +172,7 @@
                             <th data-i18n="col_actions">Actions</th>
                         </tr>
                     </thead>
-                    <tbody id="council-tbody">
-                        <!-- Populated dynamically -->
-                    </tbody>
+                    <tbody id="council-tbody"></tbody>
                 </table>
             </div>
         </div>
@@ -238,14 +234,12 @@
                             <th data-i18n="col_actions">Actions</th>
                         </tr>
                     </thead>
-                    <tbody id="members-tbody">
-                        <!-- Populated dynamically -->
-                    </tbody>
+                    <tbody id="members-tbody"></tbody>
                 </table>
             </div>
         </div>
 
-        <!-- C. OFFICE DEPARTMENT SECTION -->
+        <!-- D. OFFICE DEPARTMENT SECTION -->
         <div class="dashboard-wrapper admin-section" id="office-section">
             <h1 class="page-title" data-i18n="admin_office_title">Office Operations</h1>
 
@@ -294,9 +288,7 @@
                                 <th data-i18n="col_action">Action</th>
                             </tr>
                         </thead>
-                        <tbody id="notices-tbody">
-                            <!-- Populated dynamically -->
-                        </tbody>
+                        <tbody id="notices-tbody"></tbody>
                     </table>
                 </div>
             </div>
@@ -376,9 +368,7 @@
                                 <th data-i18n="col_actions">Actions</th>
                             </tr>
                         </thead>
-                        <tbody id="branches-tbody">
-                            <!-- Populated dynamically -->
-                        </tbody>
+                        <tbody id="branches-tbody"></tbody>
                     </table>
                 </div>
 
@@ -438,7 +428,7 @@
             </div>
         </div>
 
-        <!-- D. FINANCE DEPARTMENT SECTION -->
+        <!-- E. FINANCE DEPARTMENT SECTION -->
         <div class="dashboard-wrapper admin-section" id="finance-section">
             <h1 class="page-title" data-i18n="admin_fin_title">Finance & Auditing</h1>
 
@@ -517,15 +507,13 @@
                                 <th data-i18n="col_action">Action</th>
                             </tr>
                         </thead>
-                        <tbody id="transactions-tbody">
-                            <!-- Populated dynamically -->
-                        </tbody>
+                        <tbody id="transactions-tbody"></tbody>
                     </table>
                 </div>
             </div>
         </div>
 
-        <!-- E. MESSAGES INBOX SECTION -->
+        <!-- F. MESSAGES INBOX SECTION -->
         <div class="dashboard-wrapper admin-section" id="messages-section">
             <h1 class="page-title" data-i18n="admin_msgs_title">Office Mail Inbox</h1>
 
@@ -545,9 +533,7 @@
                             <th data-i18n="col_actions">Actions</th>
                         </tr>
                     </thead>
-                    <tbody id="messages-tbody">
-                        <!-- Populated dynamically -->
-                    </tbody>
+                    <tbody id="messages-tbody"></tbody>
                 </table>
             </div>
         </div>
@@ -819,8 +805,28 @@
         </div>
     </div>
 
+    <!-- Firebase App & Realtime Database SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+
+    <script>
+      const firebaseConfig = {
+        apiKey: "AIzaSyCsREqSKzHlb8NKuy79hejKXwKQx6umqfA",
+        authDomain: "bics-sylhet-district-west.firebaseapp.com",
+        databaseURL: "https://bics-sylhet-district-west-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "bics-sylhet-district-west",
+        storageBucket: "bics-sylhet-district-west.firebasestorage.app",
+        messagingSenderId: "223075309948",
+        appId: "1:223075309948:web:e00eb3dd70f1d01896ecf9",
+        measurementId: "G-2XFWG03DD4"
+      };
+
+      firebase.initializeApp(firebaseConfig);
+      const db = firebase.database();
+    </script>
+
     <script src="i18n.js?v=1"></script>
-    <script src="admin.js?v=4"></script>
+    <script src="admin.js?v=5"></script>
 </body>
 
 </html>
